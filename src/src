@@ -1,0 +1,87 @@
+import requests
+from pywebio.output import *
+from pywebio.session import *
+
+HEADER = '<h2>Latest News</h2>'
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+HEADERS = {"User-Agent": "Mozilla/5.0"}  # Yahoo often blocks requests without this
+
+# label -> Yahoo Finance symbol
+MARKETS = {
+    "DXY (US Dollar Index)": "DX-Y.NYB",
+    "WTI Crude Oil": "CL=F",
+    "Brent Crude Oil": "BZ=F",
+}
+
+DARK_STYLE = """
+<style>
+    html, body, .pywebio, .container {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+    a { color: #4da3ff !important; }
+    hr { border-color: #444444 !important; }
+</style>
+"""
+
+
+def get_quote(label, symbol):
+    """Return (text, color) for one market symbol."""
+    try:
+        response = requests.get(
+            YAHOO_URL.format(symbol=symbol), headers=HEADERS, timeout=10
+        )
+        response.raise_for_status()
+        meta = response.json()["chart"]["result"][0]["meta"]
+        price = meta["regularMarketPrice"]
+        prev = meta.get("chartPreviousClose")
+
+        if prev:
+            change = (price - prev) / prev * 100
+            color = "#00ff88" if change >= 0 else "#ff5555"
+            return f"{label}: {price:,.2f}  ({change:+.2f}%)", color
+        return f"{label}: {price:,.2f}", "#ffffff"
+    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
+        return f"{label}: unavailable right now", "#888888"
+
+
+def get_news(_=None):
+    clear()
+    put_html(DARK_STYLE)  # must come after clear(), which removes earlier output
+    put_html(HEADER)
+
+    # DXY and oil
+    for label, symbol in MARKETS.items():
+        text, color = get_quote(label, symbol)
+        style(put_text(text), f'color:{color}; font-size: 22px')
+
+    put_html("<hr>")
+
+    # News
+    try:
+        ids = requests.get(
+            "https://hacker-news.firebaseio.com/v0/topstories.json",
+            timeout=10,
+        ).json()[:5]  # first 5 stories
+
+        for story_id in ids:
+            item = requests.get(
+                f"https://hacker-news.firebaseio.com/v0/item/{story_id}.json",
+                timeout=10,
+            ).json()
+            title = item.get("title", "No title")
+            link = item.get("url", f"https://news.ycombinator.com/item?id={story_id}")
+            put_link(title, url=link, new_window=True)
+            put_html("<br>")
+    except (requests.RequestException, ValueError):
+        put_text("Couldn't fetch the news. Check your internet connection.")
+
+    put_buttons(
+        [dict(label='Refresh', value='refresh', color='outline-success')],
+        onclick=get_news,
+    )
+
+
+if __name__ == '__main__':
+    get_news()
+    hold()
