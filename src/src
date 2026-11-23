@@ -9,7 +9,6 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}  # Yahoo often blocks requests without t
 # label -> Yahoo Finance symbol
 MARKETS = {
     "DXY (US Dollar Index)": "DX-Y.NYB",
-    "WTI Crude Oil": "CL=F",
     "Brent Crude Oil": "BZ=F",
 }
 
